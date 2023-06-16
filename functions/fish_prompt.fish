@@ -208,14 +208,16 @@ function __bobthefish_git_project_dir -S -a real_pwd -d 'Print the current git p
 
     switch $real_pwd/
         case $project_dir/\*
-            echo $project_dir
+            set -l branch (command git symbolic-ref HEAD 2>/dev/null | string replace -r '^refs/heads/' '')
+            echo (string replace -r /$branch'($|/)' '' $project_dir)
             return
     end
 
     set project_dir (command git rev-parse --show-toplevel 2>/dev/null)
     switch $real_pwd/
         case $project_dir/\*
-            echo $project_dir
+            set -l branch (command git symbolic-ref HEAD 2>/dev/null | string replace -r '^refs/heads/' '')
+            echo (string replace -r /$branch'($|/)' '' $project_dir)
     end
 end
 
@@ -1069,13 +1071,18 @@ function __bobthefish_prompt_git -S -a git_root_dir -a real_pwd -d 'Display the 
 
     set -l project_pwd (command git rev-parse --show-prefix 2>/dev/null | string trim --right --chars=/)
     set -l work_dir (command git rev-parse --show-toplevel 2>/dev/null)
+    set -l branch (command git symbolic-ref HEAD 2>/dev/null | string replace -r '^refs/heads/' '')
 
     # only show work dir if it's a parent…
     if [ "$work_dir" ]
         switch $real_pwd/
             case $work_dir/\*
-                string match "$git_root_dir*" $work_dir >/dev/null
-                and set work_dir (string sub -s (math 1 + (string length $git_root_dir)) $work_dir)
+                # add the branch to the git worktree directory.
+                set -l git_worktree_dir (git worktree list | rg "\[$branch\]" | awk '{print $1}')
+                # If work_dir is in that git_worktree_dir,
+                string match "$git_worktree_dir*" $work_dir >/dev/null
+                # remove the whole git_worktree_dir, including the branch, from the workdir.
+                and set work_dir (string sub -s (math 1 + (string length $git_worktree_dir)) $work_dir)
             case \*
                 set -e work_dir
         end
@@ -1110,8 +1117,10 @@ function __bobthefish_prompt_git -S -a git_root_dir -a real_pwd -d 'Display the 
     else
         set project_pwd $real_pwd
 
-        string match "$git_root_dir*" $project_pwd >/dev/null
-        and set project_pwd (string sub -s (math 1 + (string length $git_root_dir)) $project_pwd)
+        set -l git_worktree_dir (git worktree list | rg "\[$branch\]" | awk '{print $1}')
+
+        string match "$git_worktree_dir*" $project_pwd >/dev/null
+        and set project_pwd (string sub -s (math 1 + (string length $git_worktree_dir)) $project_pwd)
 
         set project_pwd (string trim --left --chars=/ -- $project_pwd)
 
