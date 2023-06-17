@@ -208,6 +208,11 @@ function __bobthefish_git_project_dir -S -a real_pwd -d 'Print the current git p
 
     switch $real_pwd/
         case $project_dir/\*
+            # if we're not in a worktree, we have a ".git" folder present but nothing checked out in this directory.
+            # With nothing checked out, we can't show a status or anything, so return.
+            [ (git rev-parse --is-inside-work-tree) = "false" ] 
+            and return 
+
             set -l branch (command git symbolic-ref HEAD 2>/dev/null | string replace -r '^refs/heads/' '')
             echo (string replace -r /$branch'($|/)' '' $project_dir)
             return
