@@ -1076,7 +1076,7 @@ function __bobthefish_prompt_git -S -a git_root_dir -a real_pwd -d 'Display the 
 
     set -l project_pwd (command git rev-parse --show-prefix 2>/dev/null | string trim --right --chars=/)
     set -l work_dir (command git rev-parse --show-toplevel 2>/dev/null)
-    set -l branch (command git symbolic-ref HEAD 2>/dev/null | string replace -r '^refs/heads/' '')
+    set -l branch (command git symbolic-ref HEAD 2>/dev/null | string replace -r '^refs/heads/' '' || git describe --tags --exact-match)
 
     # only show work dir if it's a parent…
     if [ "$work_dir" ]
