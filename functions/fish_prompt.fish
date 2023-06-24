@@ -1083,11 +1083,11 @@ function __bobthefish_prompt_git -S -a git_root_dir -a real_pwd -d 'Display the 
         switch $real_pwd/
             case $work_dir/\*
                 # add the branch to the git worktree directory.
-                set -l git_worktree_dir (git worktree list | rg "\[$branch\]" | awk '{print $1}')
+                set -l git_worktree_dir (git worktree list | rg "\[(heads/)?$branch\]" | awk '{print $1}')
                 # If work_dir is in that git_worktree_dir,
                 string match "$git_worktree_dir*" $work_dir >/dev/null
                 # remove the whole git_worktree_dir, including the branch, from the workdir.
-                and set work_dir (string sub -s (math 1 + (string length $git_worktree_dir)) $work_dir)
+                and set work_dir (string sub -s (math 1 + (string length "$git_worktree_dir")) $work_dir)
             case \*
                 set -e work_dir
         end
@@ -1122,10 +1122,10 @@ function __bobthefish_prompt_git -S -a git_root_dir -a real_pwd -d 'Display the 
     else
         set project_pwd $real_pwd
 
-        set -l git_worktree_dir (git worktree list | rg "\[$branch\]" | awk '{print $1}')
+        set -l git_worktree_dir (git worktree list | rg "\[(heads/)?$branch\]" | awk '{print $1}')
 
         string match "$git_worktree_dir*" $project_pwd >/dev/null
-        and set project_pwd (string sub -s (math 1 + (string length $git_worktree_dir)) $project_pwd)
+        and set project_pwd (string sub -s (math 1 + (string length "$git_worktree_dir")) $project_pwd)
 
         set project_pwd (string trim --left --chars=/ -- $project_pwd)
 
