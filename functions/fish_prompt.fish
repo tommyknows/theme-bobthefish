@@ -181,49 +181,56 @@ function __bobthefish_git_project_dir -S -a real_pwd -d 'Print the current git p
         return
     end
 
-    set -l git_dir (command git rev-parse --git-dir 2>/dev/null)
-    or return
-
-    pushd $git_dir
-    set git_dir (__bobthefish_pwd)
-    popd
-
-    switch $real_pwd/
-        case $git_dir/\*
-            # Nothing works quite right if we're inside the git dir
-            # TODO: fix the underlying issues then re-enable the stuff below
-
-            # # if we're inside the git dir, sweet. just return that.
-            # set -l toplevel (command git rev-parse --show-toplevel 2>/dev/null)
-            # if [ "$toplevel" ]
-            #   switch $git_dir/
-            #     case $toplevel/\*
-            #       echo $git_dir
-            #   end
-            # end
-            return
+    set -l worktree (__bobthefish_dirname (git rev-parse --show-toplevel 2>/dev/null) || echo '')
+    if [ ! -z "$worktree" ]
+        echo $worktree
+        return
     end
+    # just give up. This is worktree-mode, if we're not in a git worktree, we don't want to display anything.
 
-    set -l project_dir (__bobthefish_dirname $git_dir)
+    #set -l git_dir (command git rev-parse --git-dir 2>/dev/null)
+    #or return
 
-    switch $real_pwd/
-        case $project_dir/\*
-            # if we're not in a worktree, we have a ".git" folder present but nothing checked out in this directory.
-            # With nothing checked out, we can't show a status or anything, so return.
-            [ (git rev-parse --is-inside-work-tree) = "false" ] 
-            and return 
+    #pushd $git_dir
+    #set git_dir (__bobthefish_pwd)
+    #popd
 
-            set -l branch (command git symbolic-ref HEAD 2>/dev/null | string replace -r '^refs/heads/' '')
-            echo (string replace -r /$branch'($|/)' '' $project_dir)
-            return
-    end
+    #switch $real_pwd/
+        #case $git_dir/\*
+            ## Nothing works quite right if we're inside the git dir
+            ## TODO: fix the underlying issues then re-enable the stuff below
 
-    set project_dir (command git rev-parse --show-toplevel 2>/dev/null)
-    switch $real_pwd/
-        case $project_dir/\*
-            set -l branch (command git symbolic-ref HEAD 2>/dev/null | string replace -r '^refs/heads/' '')
-            echo (string replace -r /$branch'($|/)' '' $project_dir)
-    end
+            ## # if we're inside the git dir, sweet. just return that.
+            ## set -l toplevel (command git rev-parse --show-toplevel 2>/dev/null)
+            ## if [ "$toplevel" ]
+            ##   switch $git_dir/
+            ##     case $toplevel/\*
+            ##       echo $git_dir
+            ##   end
+            ## end
+            #return
+    #end
+
+    #set -l project_dir (__bobthefish_dirname $git_dir)
+
+    #switch $real_pwd/
+        #case $project_dir/\*
+            ## if we're not in a worktree, we have a ".git" folder present but nothing checked out in this directory.
+            ## With nothing checked out, we can't show a status or anything, so return.
+            #[ (git rev-parse --is-inside-work-tree) = "false" ] 
+            #and return 
+
+            #set -l branch (command git symbolic-ref HEAD 2>/dev/null | string replace -r '^refs/heads/' '')
+            #echo (string replace -r /$branch'($|/)' '' $project_dir)
+            #return
+    #end
+
+    #set project_dir (command git rev-parse --show-toplevel 2>/dev/null)
+    #switch $real_pwd/
+        #case $project_dir/\*
+            #set -l branch (command git symbolic-ref HEAD 2>/dev/null | string replace -r '^refs/heads/' '')
+            #echo (string replace -r /$branch'($|/)' '' $project_dir)
+    #end
 end
 
 function __bobthefish_hg_project_dir -S -a real_pwd -d 'Print the current hg project base directory'
@@ -1074,72 +1081,89 @@ function __bobthefish_prompt_git -S -a git_root_dir -a real_pwd -d 'Display the 
         return
     end
 
-    set -l project_pwd (command git rev-parse --show-prefix 2>/dev/null | string trim --right --chars=/)
-    set -l work_dir (command git rev-parse --show-toplevel 2>/dev/null)
-    set -l branch (command git symbolic-ref HEAD 2>/dev/null | string replace -r '^refs/heads/' '' || git describe --tags --exact-match)
-
-    # only show work dir if it's a parent…
-    if [ "$work_dir" ]
-        switch $real_pwd/
-            case $work_dir/\*
-                # add the branch to the git worktree directory.
-                set -l git_worktree_dir (git worktree list | rg "\[(heads/)?$branch\]" | awk '{print $1}')
-                # If work_dir is in that git_worktree_dir,
-                string match "$git_worktree_dir*" $work_dir >/dev/null
-                # remove the whole git_worktree_dir, including the branch, from the workdir.
-                and set work_dir (string sub -s (math 1 + (string length "$git_worktree_dir")) $work_dir)
-            case \*
-                set -e work_dir
-        end
+    set -l project_dir $git_root_dir/(__bobthefish_basename (git rev-parse --show-toplevel 2>/dev/null))
+    if [ "$project_dir" = "$real_pwd" ]
+        return
     end
 
-    if [ "$project_pwd" -o "$work_dir" ]
-        set -l colors $color_path
-        if not [ -w "$real_pwd" ]
-            set colors $color_path_nowrite
-        end
+    set project_pwd (string replace $project_dir/ '' $real_pwd)
 
-        __bobthefish_start_segment $colors
-
-        # handle work_dir != project dir
-        if [ "$work_dir" ]
-            set -l work_parent (__bobthefish_dirname $work_dir)
-            if [ "$work_parent" ]
-                echo -n "$work_parent/"
-            end
-
-            set_color normal
-            set_color -b $color_repo_work_tree
-            echo -n (__bobthefish_basename $work_dir)
-
-            set_color normal
-            set_color -b $colors
-            [ "$project_pwd" ]
-            and echo -n '/'
-        end
-
-        echo -ns $project_pwd ' '
-    else
-        set project_pwd $real_pwd
-
-        set -l git_worktree_dir (git worktree list | rg "\[(heads/)?$branch\]" | awk '{print $1}')
-
-        string match "$git_worktree_dir*" $project_pwd >/dev/null
-        and set project_pwd (string sub -s (math 1 + (string length "$git_worktree_dir")) $project_pwd)
-
-        set project_pwd (string trim --left --chars=/ -- $project_pwd)
-
-        if [ "$project_pwd" ]
-            set -l colors $color_path
-            if not [ -w "$real_pwd" ]
-                set colors $color_path_nowrite
-            end
-
-            __bobthefish_start_segment $colors
-
-            echo -ns $project_pwd ' '
-        end
+    set -l colors $color_path
+    if not [ -w "$real_pwd" ]
+        set colors $color_path_nowrite
     end
+
+    __bobthefish_start_segment $colors
+
+    echo -ns $project_pwd ' '
+
+    ## TODO: make all of this faster and correct.
+    #set -l project_pwd (command git rev-parse --show-prefix 2>/dev/null | string trim --right --chars=/)
+    #set -l work_dir (command git rev-parse --show-toplevel 2>/dev/null)
+    #set -l branch (command git symbolic-ref HEAD 2>/dev/null | string replace -r '^refs/heads/' '' || git describe --tags --exact-match)
+
+    ## only show work dir if it's a parent…
+    #if [ "$work_dir" ]
+        #switch $real_pwd/
+            #case $work_dir/\*
+                ## add the branch to the git worktree directory.
+                #set -l git_worktree_dir (git worktree list | rg "\[(heads/)?$branch\]" | awk '{print $1}')
+                ## If work_dir is in that git_worktree_dir,
+                #string match "$git_worktree_dir*" $work_dir >/dev/null
+                ## remove the whole git_worktree_dir, including the branch, from the workdir.
+                #and set work_dir (string sub -s (math 1 + (string length "$git_worktree_dir")) $work_dir)
+            #case \*
+                #set -e work_dir
+        #end
+    #end
+
+    #if [ "$project_pwd" -o "$work_dir" ]
+        #set -l colors $color_path
+        #if not [ -w "$real_pwd" ]
+            #set colors $color_path_nowrite
+        #end
+
+        #__bobthefish_start_segment $colors
+
+        ## handle work_dir != project dir
+        #if [ "$work_dir" ]
+            #set -l work_parent (__bobthefish_dirname $work_dir)
+            #if [ "$work_parent" ]
+                #echo -n "$work_parent/"
+            #end
+
+            #set_color normal
+            #set_color -b $color_repo_work_tree
+            #echo -n (__bobthefish_basename $work_dir)
+
+            #set_color normal
+            #set_color -b $colors
+            #[ "$project_pwd" ]
+            #and echo -n '/'
+        #end
+
+        #echo -ns $project_pwd ' '
+    #else
+        #set project_pwd $real_pwd
+
+        #set -l git_worktree_dir (git worktree list | rg "\[(heads/)?$branch\]" | awk '{print $1}')
+
+        #string match "$git_worktree_dir*" $project_pwd >/dev/null
+        #and set project_pwd (string sub -s (math 1 + (string length "$git_worktree_dir")) $project_pwd)
+
+        #set project_pwd (string trim --left --chars=/ -- $project_pwd)
+
+        #if [ "$project_pwd" ]
+            #set -l colors $color_path
+            #if not [ -w "$real_pwd" ]
+                #set colors $color_path_nowrite
+            #end
+
+            #__bobthefish_start_segment $colors
+
+            #echo -ns $project_pwd ' '
+        #end
+    #end
 end
 
 function __bobthefish_prompt_dir -S -a real_pwd -d 'Display a shortened form of the current directory'
