@@ -181,10 +181,19 @@ function __bobthefish_git_project_dir -S -a real_pwd -d 'Print the current git p
         return
     end
 
-    set -l worktree (__bobthefish_dirname (git rev-parse --show-toplevel 2>/dev/null) || echo '')
-    if [ ! -z "$worktree" ]
+    set -l git_toplevel (command git rev-parse --show-toplevel 2>/dev/null)
+
+    # check if we're in a git directory at all.
+    [ -z "$git_toplevel" ]
+    and return
+
+    set -l worktree (__bobthefish_dirname $git_toplevel)
+    set -l git_common_dir (__bobthefish_dirname (realpath (git rev-parse --git-common-dir 2>/dev/null)))
+    if [ ! -z "$worktree" -a "$git_common_dir" = "$worktree" ]
         echo $worktree
         return
+    else 
+        echo $git_common_dir
     end
     # just give up. This is worktree-mode, if we're not in a git worktree, we don't want to display anything.
 
@@ -1081,12 +1090,22 @@ function __bobthefish_prompt_git -S -a git_root_dir -a real_pwd -d 'Display the 
         return
     end
 
-    set -l project_dir $git_root_dir/(__bobthefish_basename (git rev-parse --show-toplevel 2>/dev/null))
-    if [ "$project_dir" = "$real_pwd" ]
-        return
-    end
+    set -l git_dir (git rev-parse --show-toplevel 2>/dev/null)
+    #if [ "$git_dir" = "$git_root_dir" ]
+        #set project_dir "$real_pwd"
+    #else
+        #set project_dir $git_root_dir/(__bobthefish_basename $git_dir)
+        #if [ "$project_dir" = "$real_pwd" ]
+            #return
+        #end
+    #end
 
-    set project_pwd (string replace $project_dir/ '' $real_pwd)
+    #set project_pwd (string replace $project_dir/ '' $real_pwd)
+    # string replace will return a non-zero exit code if it can't replace anything. We
+    # use that to exit if git-dir == real-pwd
+    if ! set project_pwd (string replace $git_dir/ '' $real_pwd)
+       return
+    end
 
     set -l colors $color_path
     if not [ -w "$real_pwd" ]
